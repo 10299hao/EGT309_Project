@@ -145,7 +145,7 @@ class GasActivityPipeline:
                 "Unknown labels found in target column. "
                 "Update ACTIVITY_MAP to include all label variants."
             )
-
+        
         # Nullify physically impossible sensor values
         df.loc[df["Temperature"] > 40, "Temperature"] = np.nan
         df.loc[(df["Humidity"] < 0) | (df["Humidity"] > 100), "Humidity"] = np.nan
@@ -430,6 +430,10 @@ class GasActivityPipeline:
         }
 
         return self.results
+
+
+
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments for pipeline configuration."""
