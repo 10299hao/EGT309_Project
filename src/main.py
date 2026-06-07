@@ -54,6 +54,8 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from mh_RF import train_random_forest
 from mh_mlp import train_mlp
+from gina_1 import run_xgboost
+from gina_2 import run_knn
 
 
 
@@ -332,7 +334,11 @@ class GasActivityPipeline:
         #standardis to 3 class
         df[TARGET] = df[TARGET].map(ACTIVITY_MAP)
 
-        df.loc[df["Temperature"] > 40, "Temperature"] = np.nan
+        # Convert Kelvin readings to Celsius (values >200 are Kelvin, e.g. 295K = 21.9°C)
+        kelvin_mask = df["Temperature"] > 200
+        df.loc[kelvin_mask, "Temperature"] = df.loc[kelvin_mask, "Temperature"] - 273.15
+        # After conversion, any remaining out-of-range values are true sensor errors
+        df.loc[(df["Temperature"] < 0) | (df["Temperature"] > 60), "Temperature"] = np.nan
         df.loc[(df["Humidity"] < 0) | (df["Humidity"] > 100), "Humidity"] = np.nan
 
         for col in CATEGORICAL_COLS:
@@ -417,14 +423,42 @@ class GasActivityPipeline:
             ("cat", categorical_pipeline, CATEGORICAL_COLS),
         ])
 
-    #train
     def train(self, X_train: pd.DataFrame, y_train: pd.Series):
-        """Train all models using the shared preprocessor."""
+ 
         preprocessor = self.build_preprocessor()
-        self.models["random_forest"]  = train_random_forest(preprocessor, X_train, y_train, self.cv_folds, self.random_state)
-        self.models["mlp_neural_net"] = train_mlp(preprocessor, X_train, y_train, self.cv_folds, self.random_state)
-        return self.models
 
+        print("  [1/4] Training Random Forest...")
+        self.models["random_forest"] = train_random_forest(
+            preprocessor,
+            X_train,
+            y_train,
+            self.cv_folds,
+            self.random_state,
+        )
+
+        print("  [2/4] Training MLP Neural Network...")
+        self.models["mlp_neural_net"] = train_mlp(
+            preprocessor,
+            X_train,
+            y_train,
+            self.cv_folds,
+            self.random_state,
+        )
+
+        print("  [3/4] Training XGBoost (Gina)...")
+        self.models["xgboost"] = run_xgboost(
+            X_train,
+            y_train,
+            self.random_state,
+        )
+
+        print("  [4/4] Training k-NN (Gina)...")
+        self.models["knn"] = run_knn(
+            X_train,
+            y_train,
+        )
+
+        return self.models
     
     #evalutation and save models/visualisation
     def evaluate_all(self, X_test: pd.DataFrame, y_test: pd.Series):
@@ -440,10 +474,10 @@ class GasActivityPipeline:
             save_f1_bar_chart(y_test, y_pred, model_name)
             save_classification_report_txt(y_test, y_pred, model_name)
 
-            # Collect metrics
+            # Collect metrics (SearchCV models have best_params_; plain models do not)
             all_results[model_name] = {
-                "best_params":           model.best_params_,
-                "best_cv_score":         round(model.best_score_, 4),
+                "best_params":           getattr(model, "best_params_", "N/A"),
+                "best_cv_score":         round(getattr(model, "best_score_", float("nan")), 4) if hasattr(model, "best_score_") else "N/A",
                 "accuracy":              round(accuracy_score(y_test, y_pred), 4),
                 "balanced_accuracy":     round(balanced_accuracy_score(y_test, y_pred), 4),
                 "weighted_f1":           round(f1_score(y_test, y_pred, average="weighted"), 4),
@@ -546,7 +580,6 @@ def main():
         print(f"  Weighted F1    : {metrics['weighted_f1']:.4f}")
         print(f"  Macro F1       : {metrics['macro_f1']:.4f}")
         print(f"  Accuracy       : {metrics['accuracy']:.4f}")
-        print(f"  Balanced Acc   : {metrics['balanced_accuracy']:.4f}")
         print(f"\n  Classification Report:\n{metrics['classification_report']}")
 
 

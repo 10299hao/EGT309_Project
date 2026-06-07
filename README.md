@@ -4,11 +4,11 @@
 
 **Group Name:** Team 3  
 **Members:**
-| Name | Student ID | Files Written |
-|---|---|---|
-| MH | - | `main.py`, `mh_mlp.py`, `mh_RF.py`|
-| Gina | - | `gina_1.py`, `gina_2.py`  |
-| Eishmeet | - | `eishmeet_*.py` |
+| Name | Files Written |
+|---|---|
+| MH | `main.py`, `mh_mlp.py`, `mh_RF.py`|
+| Gina | `gina_1.py`, `gina_2.py`  |
+| Eishmeet | `eishmeet_1.py`,`eishmeet_2.py` |
 
 
 ---
@@ -93,7 +93,7 @@ The EDA was conducted on 10,000 rows and 14 columns from the `gas_monitoring.db`
 |---|---|---|
 | Dirty Activity Level labels | 6 raw variants for 3 real classes | Mapped all variants to 3 canonical labels |
 | Dirty HVAC Operation Mode labels | 23 raw variants for 6 real modes | Lowercased, stripped spaces, replaced underscores |
-| Impossible temperature readings | 795 rows above 40°C | Set to NaN, then median imputed |
+| Mixed temperature units | 795 rows recorded in Kelvin (289–307 K range) | Converted to Celsius by subtracting 273.15; any remaining out-of-range values set to NaN then median imputed |
 | Impossible humidity readings | 414 rows outside 0–100% | Set to NaN, then median imputed |
 | Missing numerical values | 4 columns, 8.3%–19.3% missing | Median imputation (fit on training data only) |
 | Missing categorical values | Ambient Light Level 10.5% missing | Mode imputation (fit on training data only) |

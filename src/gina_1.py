@@ -152,3 +152,75 @@ plt.grid(False)
 plt.tight_layout()
 plt.savefig('xgboost_confusion_matrix.png', dpi=300)
 plt.close()
+
+
+# 1. Place the class wrapper at the top level of the module so joblib can serialize it
+class WrappedXGBoostClassifier:
+    def __init__(self, prep_pipeline, clf):
+        self.prep_pipeline = prep_pipeline
+        self.clf = clf
+
+    def predict(self, X):
+        import numpy as np
+        # Process incoming data slices dynamically matching your data pipeline
+        preds = self.clf.predict(self.prep_pipeline.transform(X))
+        
+        # Translate predictions back to string labels for main.py evaluation matrices
+        inverse_labels = np.array(['Low Activity', 'Moderate Activity', 'High Activity'])
+        return inverse_labels[preds]
+
+
+# 2. Update the entry point function below it
+def run_xgboost(X_train, y_train, random_state: int = 42):
+    """
+    Build, fit, and return the XGBoost model wrapped to match the Scikit-Learn
+    interface expected by your main.py evaluation loop.
+    """
+    import numpy as np
+    import pandas as pd
+    from sklearn.utils.class_weight import compute_sample_weight
+    
+    # Map string labels to numeric integers strictly required by XGBoost
+    target_numeric_map = {'Low Activity': 0, 'Moderate Activity': 1, 'High Activity': 2}
+    if isinstance(y_train, pd.Series):
+        y_train_encoded = y_train.map(target_numeric_map)
+    else:
+        y_train_encoded = pd.Series(y_train).map(target_numeric_map).values
+
+    numerical_cols_local  = X_train.select_dtypes(include=["int64", "float64"]).columns.tolist()
+    categorical_cols_local = X_train.select_dtypes(include=["object"]).columns.tolist()
+ 
+    sub_num = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler",  StandardScaler()),
+    ])
+    sub_cat = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("onehot",  OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+    ])
+    processor = ColumnTransformer(transformers=[
+        ("num", sub_num, numerical_cols_local),
+        ("cat", sub_cat, categorical_cols_local),
+    ])
+ 
+    pipeline = Pipeline(steps=[
+        ("temp_normalizer",   TemperatureUnitNormalizer(temperature_col="Temperature", threshold=100.0)),
+        ("feature_processing", processor),
+    ])
+ 
+    X_train_proc = pipeline.fit_transform(X_train)
+    sample_weights = compute_sample_weight(class_weight="balanced", y=y_train_encoded)
+ 
+    model = XGBClassifier(
+        n_estimators=150,
+        learning_rate=0.08,
+        max_depth=5,
+        objective="multi:softprob",
+        num_class=3,
+        random_state=random_state,
+        eval_metric="mlogloss",
+    )
+    model.fit(X_train_proc, y_train_encoded, sample_weight=sample_weights)
+ 
+    # Instantiate the global picklable class wrapper
+    return WrappedXGBoostClassifier(pipeline, model)

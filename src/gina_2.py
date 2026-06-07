@@ -150,3 +150,34 @@ plt.grid(False)
 plt.tight_layout()
 plt.savefig(os.path.join(SCRIPT_DIR, 'knn_confusion_matrix.png'), dpi=300)
 plt.close()
+
+
+def run_knn(X_train, y_train):
+    """
+    Build, fit, and return the full k-NN master pipeline so main.py 
+    can call predict() on it directly during evaluation loops.
+    """
+    numerical_cols_local   = X_train.select_dtypes(include=["int64", "float64"]).columns.tolist()
+    categorical_cols_local = X_train.select_dtypes(include=["object"]).columns.tolist()
+ 
+    sub_num = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler",  StandardScaler()),  # Crucial for distance calculation models like k-NN
+    ])
+    sub_cat = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("onehot",  OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+    ])
+    processor = ColumnTransformer(transformers=[
+        ("num", sub_num, numerical_cols_local),
+        ("cat", sub_cat, categorical_cols_local),
+    ])
+ 
+    pipeline = Pipeline(steps=[
+        ("temp_normalizer",    TemperatureUnitNormalizer(temperature_col="Temperature", threshold=100.0)),
+        ("feature_processing", processor),
+        ("classifier",         KNeighborsClassifier(n_neighbors=5, weights="distance")),
+    ])
+ 
+    pipeline.fit(X_train, y_train)
+    return pipeline

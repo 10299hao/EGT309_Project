@@ -1,4 +1,4 @@
 #!/bin/bash
 echo "Starting ML Pipeline..."
-python src/main.py
+python3 src/main.py
 echo "Done."

@@ -1,3 +1,0 @@
-model,weighted_f1,macro_f1,accuracy,balanced_accuracy
-Random Forest,0.6783,0.559,0.687,0.5592
-Mlp Neural Net,0.6062,0.5082,0.602,0.515

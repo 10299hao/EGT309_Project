@@ -1,5 +1,4 @@
-#run using docker compose up
-version: "3"
+# Run using: docker compose up
 services:
   pipeline:
     build: .
