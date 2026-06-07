@@ -1,5 +1,6 @@
 
 import sqlite3
+import matplotlib
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -8,9 +9,12 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.utils.class_weight import compute_sample_weight
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 from sklearn.base import BaseEstimator, TransformerMixin
 from xgboost import XGBClassifier
+import matplotlib.pyplot as plt  
+matplotlib.use('Agg')
+import seaborn as sns
 
 #python class for preprocessing
 class TemperatureUnitNormalizer(BaseEstimator, TransformerMixin):
@@ -62,6 +66,25 @@ y = df['Target']
 
 numerical_cols = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
 categorical_cols = X.select_dtypes(include=['object']).columns.tolist()
+
+# Chart 1: Target Distribution
+plt.figure(figsize=(6, 4))
+sns.countplot(x='Activity Level', data=df, order=['Low Activity', 'Moderate Activity', 'High Activity'], palette='viridis')
+plt.title('XGBoost File - Distribution of Resident Activity Levels')
+plt.xlabel('Activity Status')
+plt.ylabel('Total Count')
+plt.tight_layout()
+plt.savefig('target_distribution.png', dpi=300)  
+plt.close()
+
+# Chart 2: Temperature Boxplot (Verifying unit fix later)
+plt.figure(figsize=(8, 5))
+sns.boxplot(x='Activity Level', y='Temperature', data=df, palette='Set2')
+plt.title('Raw Temperature Variations by Activity Level')
+plt.ylabel('Temperature')
+plt.tight_layout()
+plt.savefig('temperature_boxplot.png', dpi=300)
+plt.close()
 
 #train-test split
 X_train, X_test, y_train, y_test = train_test_split(
@@ -118,3 +141,14 @@ y_pred_xgb = xgb_model.predict(X_test_processed)
 print(f"XGBoost Overall Accuracy: {accuracy_score(y_test, y_pred_xgb):.4f}")
 print("\nClassification Report:")
 print(classification_report(y_test, y_pred_xgb, target_names=list(target_numeric_map.keys())))
+
+cm_xgb = confusion_matrix(y_test, y_pred_xgb)
+
+plt.figure(figsize=(7, 6))
+disp = ConfusionMatrixDisplay(confusion_matrix=cm_xgb, display_labels=list(target_numeric_map.keys()))
+disp.plot(cmap='Blues', values_format='d')
+plt.title('XGBoost Confusion Matrix Heatmap')
+plt.grid(False)
+plt.tight_layout()
+plt.savefig('xgboost_confusion_matrix.png', dpi=300)
+plt.close()
