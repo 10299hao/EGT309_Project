@@ -1,8 +1,4 @@
-"""
-mh_RF.py
------------------------
-Defines the Random Forest classifier pipeline.
-"""
+#random forest
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
 
@@ -13,8 +9,7 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
-def build_forest_pipeline(preprocessor, random_state: int = 42) -> Pipeline:
-    """Build Random Forest using native balanced subsampling instead of SMOTE."""
+def build_forest_pipeline(preprocessor, random_state: int = 42):
     return Pipeline([
         ("prep", preprocessor),
         ("model", RandomForestClassifier(
@@ -24,7 +19,7 @@ def build_forest_pipeline(preprocessor, random_state: int = 42) -> Pipeline:
         )),
     ])
 
-def get_forest_param_dist() -> dict:
+def get_forest_param_dist():
     """Hyperparameter distribution for RandomizedSearchCV."""
     return {
         "model__n_estimators": [300, 500],
@@ -40,7 +35,7 @@ def train_random_forest(
     y_train,
     cv_folds: int = 5,
     random_state: int = 42,
-) -> RandomizedSearchCV:
+):
     
     pipeline = build_forest_pipeline(preprocessor, random_state)
     param_dist = get_forest_param_dist()

@@ -1,0 +1,8 @@
+#run using docker compose up
+version: "3"
+services:
+  pipeline:
+    build: .
+    volumes:
+      - ./saved_model:/app/saved_model
+      - ./results:/app/results

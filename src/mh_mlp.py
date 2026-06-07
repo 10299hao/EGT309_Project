@@ -1,9 +1,4 @@
-"""
-model_mlp.py
--------------
-Defines the Multi-Layer Perceptron (MLP) neural network pipeline.
-Uses RandomOverSampler to prevent interpolation noise from SMOTE.
-"""
+#mlp
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
 
@@ -26,7 +21,7 @@ def build_mlp_pipeline(preprocessor, random_state: int = 42) -> ImbPipeline:
         )),
     ])
 
-def get_mlp_param_dist() -> dict:
+def get_mlp_param_dist():
     return {
         "model__hidden_layer_sizes": [(128, 64), (256, 128, 64)],
         "model__activation": ["relu"],
@@ -40,7 +35,7 @@ def train_mlp(
     y_train,
     cv_folds: int = 5,
     random_state: int = 42,
-) -> RandomizedSearchCV:
+):
     
     pipeline = build_mlp_pipeline(preprocessor, random_state)
     param_dist = get_mlp_param_dist()

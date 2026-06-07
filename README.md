@@ -75,6 +75,12 @@ docker build -t team3-pipeline .
 python src/main.py
 ```
 
+### Option 3 — Docker Compose (Shortest)
+```bash
+docker compose up
+```
+
+---
 ---
 
 ## Summary of Key EDA Findings
