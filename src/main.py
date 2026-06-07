@@ -1,5 +1,5 @@
 """
-mh_pipeline.py
+main.py
 ------------
 End-to-end ML pipeline for classifying room activity level from gas
 and environmental sensor readings.
