@@ -139,6 +139,7 @@ The EDA showed significant overlap between Low and Moderate Activity classes, in
 
 ### 2. Random Forest
 - **Why:** Handles non-linear patterns naturally; provides feature importance scores to validate EDA findings; robust to multicollinearity between MOS sensors
+- **Limitation:** Can become memory-intensive and slower to infer if tree depth is unconstrained.
 - **Tuning:** `n_estimators`, `max_depth`, `min_samples_split` tuned via GridSearchCV; `class_weight='balanced'` to handle imbalance
 
 ### 3. 
