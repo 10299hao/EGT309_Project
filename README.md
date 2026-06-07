@@ -132,10 +132,10 @@ All engineered features were validated using box plots and effect size (eta-squa
 
 The EDA showed significant overlap between Low and Moderate Activity classes, indicating a non-linear decision boundary. Three models were trained and compared:
 
-### 1. 
-- **Why:** 
-- **Limitation:** 
-- **Tuning:** 
+### 1. k-Nearest Neighbors (k-NN)
+- **Why:** k-NN is an instance-based, non-parametric algorithm that computes geometric distances between data points. Because it makes no structural assumptions about data distributions, it is especially useful for capturing irregular, non-linear decision boundaries in regions where classes greatly overlap.
+- **Limitation:** k-NN is sensitive to irrelevant features, extreme noise, and scaling variations. It struggles with severe class imbalance, favoring majority classes unless significantly adjusted.
+- **Tuning:** n_neighbors: Adjusting the number of neighbors (k=5, 7, 11) to balance the bias-variance trade-off. weights: Switching from 'uniform' to 'distance' ensures that closer, highly relevant neighbors have a greater statistical pull on the target vote
 
 ### 2. Random Forest
 - **Why:** Handles non-linear patterns naturally; provides feature importance scores to validate EDA findings; robust to multicollinearity between MOS sensors
