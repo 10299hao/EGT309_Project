@@ -33,6 +33,7 @@ AI_SOL_P/
 ├── requirements.txt             # Python dependencies
 ├── run.sh                       # Script to run the full pipeline
 └── Dockerfile                   # Docker container configuration
+└── docker-compose.yml           # docker volume 
 ```
 
 ---
