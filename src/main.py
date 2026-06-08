@@ -10,7 +10,7 @@ Pipeline steps:
     3. Engineer new features
     4. Save EDA visualisations (target distribution, temperature boxplot)
     5. Split into train/test sets
-    6. Train models (Random Forest, MLP Neural Network)
+    6. Train models (Random Forest, MLP Neural Network, XGBoost, k-NN, SVC, CatBoost)
     7. Evaluate models and save visualisations (confusion matrix, F1 chart)
     8. Save model comparison chart and CSV
     9. Save trained models to saved_model/ folder
@@ -51,6 +51,8 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.svm import SVC
+from catboost import CatBoostClassifier, Pool
 
 from mh_RF import train_random_forest
 from mh_mlp import train_mlp
@@ -101,7 +103,111 @@ RESULTS_DIR     = Path("saved_model/results")
 LOGGER = logging.getLogger(__name__)
 
 
-#visualisation
+# =====================================================
+# EISHMEET MODEL 1 — SVC
+# Fixes applied vs original eishmeet_1.py:
+#   - Removed input() calls (hang in Docker); table/target hardcoded to known values
+#   - Added label cleaning to match the rest of the pipeline
+#   - Removed standalone savefig (saving handled by main evaluate loop)
+#   - Returns a fitted sklearn Pipeline so evaluate_all() can call .predict() on it
+# =====================================================
+def run_svc(X_train: pd.DataFrame, y_train: pd.Series) -> Pipeline:
+    """
+    Build and return a fitted SVC pipeline.
+    Uses RBF kernel with C=10 — chosen because the EDA showed
+    non-linear decision boundaries between activity classes.
+    """
+    numerical_cols_local   = X_train.select_dtypes(include=["int64", "float64"]).columns.tolist()
+    categorical_cols_local = X_train.select_dtypes(include=["object"]).columns.tolist()
+
+    numeric_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler",  StandardScaler()),
+    ])
+
+    categorical_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("encoder", OneHotEncoder(handle_unknown="ignore")),
+    ])
+
+    preprocessor = ColumnTransformer(transformers=[
+        ("num", numeric_transformer,     numerical_cols_local),
+        ("cat", categorical_transformer, categorical_cols_local),
+    ])
+
+    svc_pipeline = Pipeline(steps=[
+        ("preprocessor", preprocessor),
+        ("classifier",   SVC(kernel="rbf", C=10, gamma="scale")),
+    ])
+
+    svc_pipeline.fit(X_train, y_train)
+    return svc_pipeline
+
+
+# =====================================================
+# EISHMEET MODEL 2 — CATBOOST
+# Fixes applied vs original eishmeet_2.py:
+#   - Removed hardcoded wrong table/target names (handled upstream by pipeline)
+#   - loss_function changed from "Logloss" (binary) to "MultiClass" (3 classes)
+#   - Added label cleaning to match the rest of the pipeline
+#   - Added stratify=y to train_test_split (done upstream, no longer needed here)
+#   - Removed standalone savefig (saving handled by main evaluate loop)
+#   - Returns a fitted wrapper so evaluate_all() can call .predict() on it
+# =====================================================
+class WrappedCatBoost:
+    """
+    Thin wrapper around CatBoostClassifier so that .predict() returns
+    string class labels matching CLASS_ORDER, consistent with all other models.
+    """
+    def __init__(self, model: CatBoostClassifier, cat_features: list[str]):
+        self.model        = model
+        self.cat_features = cat_features
+
+    def predict(self, X: pd.DataFrame):
+        # CatBoost needs cat_features columns to be strings
+        X_copy = X.copy()
+        for col in self.cat_features:
+            if col in X_copy.columns:
+                X_copy[col] = X_copy[col].astype(str)
+        return self.model.predict(X_copy).flatten()
+
+
+def run_catboost(X_train: pd.DataFrame, y_train: pd.Series) -> WrappedCatBoost:
+    """
+    Build and return a fitted CatBoost model wrapped for consistent .predict() output.
+    CatBoost handles categorical features natively — no OneHotEncoder needed.
+    loss_function set to MultiClass for 3-class classification.
+    """
+    categorical_cols_local = X_train.select_dtypes(include=["object"]).columns.tolist()
+
+    # CatBoost requires categorical columns to be strings (not NaN)
+    X_train_copy = X_train.copy()
+    for col in categorical_cols_local:
+        X_train_copy[col] = X_train_copy[col].fillna("unknown").astype(str)
+
+    train_pool = Pool(
+        X_train_copy,
+        y_train,
+        cat_features=categorical_cols_local,
+    )
+
+    model = CatBoostClassifier(
+        iterations=500,
+        learning_rate=0.1,
+        depth=6,
+        loss_function="MultiClass",   # Fixed: was "Logloss" (binary only)
+        eval_metric="Accuracy",
+        verbose=False,
+        random_seed=42,
+    )
+
+    model.fit(train_pool)
+    return WrappedCatBoost(model, categorical_cols_local)
+
+
+# =====================================================
+# VISUALISATION HELPERS
+# =====================================================
 
 def save_target_distribution(df: pd.DataFrame):
     """
@@ -117,7 +223,6 @@ def save_target_distribution(df: pd.DataFrame):
         color=[PALETTE[c] for c in counts.index],
         edgecolor="white", width=0.5,
     )
-    # Label each bar with its percentage
     for bar, pct in zip(bars, pcts):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
@@ -233,12 +338,12 @@ def save_model_comparison(all_results: dict):
     metrics       = ["weighted_f1", "macro_f1", "accuracy", "balanced_accuracy"]
     metric_labels = ["Weighted F1", "Macro F1", "Accuracy", "Balanced Accuracy"]
     model_names   = list(all_results.keys())
-    colors        = ["#4C9BE8", "#E85C5C", "#5DBE8A"]
+    colors        = ["#4C9BE8", "#E85C5C", "#5DBE8A", "#A78BFA", "#F59E0B", "#6EE7B7"]
 
     x     = np.arange(len(metrics))
     width = 0.8 / len(model_names)
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(12, 5))
     for i, model_name in enumerate(model_names):
         values = [all_results[model_name][m] for m in metrics]
         offset = (i - len(model_names) / 2 + 0.5) * width
@@ -253,7 +358,7 @@ def save_model_comparison(all_results: dict):
                 bar.get_x() + bar.get_width() / 2,
                 bar.get_height() + 0.005,
                 f"{val:.2f}",
-                ha="center", fontsize=8,
+                ha="center", fontsize=7,
             )
 
     ax.set_xticks(x)
@@ -262,7 +367,7 @@ def save_model_comparison(all_results: dict):
     ax.axhline(0.8, color="gray", linestyle="--", linewidth=1, alpha=0.5)
     ax.set_ylabel("Score")
     ax.set_title("Model Comparison — All Metrics", fontsize=13, fontweight="bold")
-    ax.legend(fontsize=9)
+    ax.legend(fontsize=8)
     plt.tight_layout()
 
     chart_path = RESULTS_DIR / "model_comparison.png"
@@ -270,7 +375,6 @@ def save_model_comparison(all_results: dict):
     plt.close()
     print(f"  Saved: {chart_path}")
 
-    # Also save as CSV for reference
     rows = [
         {
             "model":             name.replace("_", " ").title(),
@@ -297,8 +401,10 @@ def save_classification_report_txt(y_test, y_pred, model_name: str) -> None:
     print(f"  Saved: {save_path}")
 
 
+# =====================================================
+# MAIN PIPELINE CLASS
+# =====================================================
 
-#for loading, cleaning, training, evaluation, visualisation and save models
 class GasActivityPipeline:
 
     def __init__(
@@ -317,13 +423,11 @@ class GasActivityPipeline:
         self.models: dict[str, Any] = {}
         self.results: dict[str, Any] = {}
 
-    #load
     def load_data(self):
         """Load raw data from SQLite database."""
         with sqlite3.connect(self.db_path) as conn:
             return pd.read_sql(f"SELECT * FROM {self.table_name}", conn)
 
-    #clean
     def clean_data(self, df: pd.DataFrame):
         """
         Fix dirty labels, remove physically impossible sensor readings,
@@ -331,7 +435,6 @@ class GasActivityPipeline:
         """
         df = df.copy()
 
-        #standardis to 3 class
         df[TARGET] = df[TARGET].map(ACTIVITY_MAP)
 
         # Convert Kelvin readings to Celsius (values >200 are Kelvin, e.g. 295K = 21.9°C)
@@ -359,8 +462,6 @@ class GasActivityPipeline:
         )
         return cleaned.astype(object)
 
-    
-    #feature engineering
     def add_features(self, df: pd.DataFrame):
         """
         Create new features identified as useful during EDA.
@@ -382,7 +483,6 @@ class GasActivityPipeline:
             df["MetalOxideSensor_Unit3"] + df["MetalOxideSensor_Unit4"]
         )
 
-        # +1 prevents division by zero when CO_GasSensor = 0
         df["CO2_CO_Ratio"] = df["CO2_Average"] / (df["CO_GasSensor"] + 1)
 
         time_map = {"night": 0, "morning": 1, "afternoon": 2, "evening": 3}
@@ -390,8 +490,6 @@ class GasActivityPipeline:
 
         return df
 
-    
-    #split into train and test sets: using stratified split preserve the class proportion
     def split(self, df: pd.DataFrame):
         y = df[TARGET]
         X = df.drop(columns=[TARGET, "Session ID"], errors="ignore")
@@ -402,7 +500,6 @@ class GasActivityPipeline:
             stratify=y,
         )
 
-    #preprocessing pipeline applied to features b4 training
     def build_preprocessor(self):
         """
         Numeric : Median imputation → StandardScaler
@@ -424,10 +521,10 @@ class GasActivityPipeline:
         ])
 
     def train(self, X_train: pd.DataFrame, y_train: pd.Series):
- 
+
         preprocessor = self.build_preprocessor()
 
-        print("  [1/4] Training Random Forest...")
+        print("  [1/6] Training Random Forest...")
         self.models["random_forest"] = train_random_forest(
             preprocessor,
             X_train,
@@ -436,7 +533,7 @@ class GasActivityPipeline:
             self.random_state,
         )
 
-        print("  [2/4] Training MLP Neural Network...")
+        print("  [2/6] Training MLP Neural Network...")
         self.models["mlp_neural_net"] = train_mlp(
             preprocessor,
             X_train,
@@ -445,36 +542,45 @@ class GasActivityPipeline:
             self.random_state,
         )
 
-        print("  [3/4] Training XGBoost (Gina)...")
+        print("  [3/6] Training XGBoost (Gina)...")
         self.models["xgboost"] = run_xgboost(
             X_train,
             y_train,
             self.random_state,
         )
 
-        print("  [4/4] Training k-NN (Gina)...")
+        print("  [4/6] Training k-NN (Gina)...")
         self.models["knn"] = run_knn(
             X_train,
             y_train,
         )
 
+        print("  [5/6] Training SVC (Eishmeet)...")
+        self.models["svc"] = run_svc(
+            X_train,
+            y_train,
+        )
+
+        print("  [6/6] Training CatBoost (Eishmeet)...")
+        self.models["catboost"] = run_catboost(
+            X_train,
+            y_train,
+        )
+
         return self.models
-    
-    #evalutation and save models/visualisation
+
     def evaluate_all(self, X_test: pd.DataFrame, y_test: pd.Series):
- 
+
         all_results = {}
 
         for model_name, model in self.models.items():
             print(f"\n  Evaluating: {model_name.replace('_', ' ').title()}")
             y_pred = model.predict(X_test)
 
-            # Save visualisations for this model
             save_confusion_matrix(y_test, y_pred, model_name)
             save_f1_bar_chart(y_test, y_pred, model_name)
             save_classification_report_txt(y_test, y_pred, model_name)
 
-            # Collect metrics (SearchCV models have best_params_; plain models do not)
             all_results[model_name] = {
                 "best_params":           getattr(model, "best_params_", "N/A"),
                 "best_cv_score":         round(getattr(model, "best_score_", float("nan")), 4) if hasattr(model, "best_score_") else "N/A",
@@ -486,13 +592,9 @@ class GasActivityPipeline:
                 "classification_report": classification_report(y_test, y_pred, target_names=CLASS_ORDER),
             }
 
-        # Save comparison chart and CSV across all models
         save_model_comparison(all_results)
-
         return all_results
 
-    
-    #save models
     def save_models(self):
         """
         Save all trained models to saved_model/ folder using joblib.
@@ -504,46 +606,44 @@ class GasActivityPipeline:
             joblib.dump(model, save_path)
             print(f"  Saved: {save_path}")
 
-
     def run(self) -> dict[str, Any]:
 
-        # Create output folders
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         SAVED_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+
         print("Step 1/7  Loading data from database...")
         df_raw = self.load_data()
-        print(f"Loading {len(df_raw):,} rows x {df_raw.shape[1]} columns")
+        print(f"          Loaded {len(df_raw):,} rows x {df_raw.shape[1]} columns")
 
         print("Step 2/7  Cleaning data...")
         df = self.clean_data(df_raw)
 
-        print("Step 3/7  Feature engineering")
+        print("Step 3/7  Feature engineering...")
         df = self.add_features(df)
-        print(f"       Dataset now has {df.shape[1]} columns after feature engineering")
+        print(f"          Dataset now has {df.shape[1]} columns after feature engineering")
 
-        print("Step 4/7  Saving data visualisations")
+        print("Step 4/7  Saving data visualisations...")
         save_target_distribution(df)
         save_temperature_boxplot(df)
 
-        print("Step 5/7  Splitting into train/test set")
+        print("Step 5/7  Splitting into train/test sets...")
         X_train, X_test, y_train, y_test = self.split(df)
         print(f"          Train: {len(X_train):,} rows | Test: {len(X_test):,} rows")
 
-        print("Step 6/7  Training models (pls be patient)")
+        print("Step 6/7  Training models (please be patient)...")
         self.train(X_train, y_train)
 
-        print("Step 7/7  Evaluating models and saving results")
+        print("Step 7/7  Evaluating models and saving results...")
         self.results = self.evaluate_all(X_test, y_test)
 
-        print("\n         Saving trained models")
+        print("\n          Saving trained models...")
         self.save_models()
 
-        print(" FINALLY!")
-        print(f" Models  → {SAVED_MODEL_DIR}/")
-        print(f" Results → {RESULTS_DIR}/")
+        print("\n DONE!")
+        print(f"  Models  → {SAVED_MODEL_DIR}/")
+        print(f"  Results → {RESULTS_DIR}/")
 
         return self.results
-
 
 
 def main():
@@ -552,7 +652,6 @@ def main():
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    # Command line arguments — allows hyperparameters to be changed without editing code
     parser = argparse.ArgumentParser(description="EGT309 Gas Activity ML Pipeline")
     parser.add_argument("--db-path",      type=Path,  default=Path("data/gas_monitoring.db"), help="Path to SQLite database")
     parser.add_argument("--table-name",   type=str,   default="gas_monitoring",               help="Table name in database")
@@ -571,7 +670,6 @@ def main():
 
     results = pipeline.run()
 
-    # Print final results summary to terminal
     print("\n========================================")
     print(" Results Summary")
     print("========================================")
@@ -584,4 +682,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main()  
