@@ -16,6 +16,10 @@ import matplotlib.pyplot as plt
 matplotlib.use('Agg')
 import seaborn as sns
 
+
+import os
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 #python class for preprocessing
 class TemperatureUnitNormalizer(BaseEstimator, TransformerMixin):
     """
@@ -74,7 +78,7 @@ plt.title('XGBoost File - Distribution of Resident Activity Levels')
 plt.xlabel('Activity Status')
 plt.ylabel('Total Count')
 plt.tight_layout()
-plt.savefig('target_distribution.png', dpi=300)  
+plt.savefig(os.path.join(SCRIPT_DIR, 'target_distribution.png'), dpi=300)
 plt.close()
 
 # Chart 2: Temperature Boxplot (Verifying unit fix later)
@@ -83,7 +87,7 @@ sns.boxplot(x='Activity Level', y='Temperature', data=df, palette='Set2')
 plt.title('Raw Temperature Variations by Activity Level')
 plt.ylabel('Temperature')
 plt.tight_layout()
-plt.savefig('temperature_boxplot.png', dpi=300)
+plt.savefig(os.path.join(SCRIPT_DIR, 'temperature_boxplot.png'), dpi=300)
 plt.close()
 
 #train-test split
@@ -150,7 +154,7 @@ disp.plot(cmap='Blues', values_format='d')
 plt.title('XGBoost Confusion Matrix Heatmap')
 plt.grid(False)
 plt.tight_layout()
-plt.savefig('xgboost_confusion_matrix.png', dpi=300)
+plt.savefig(os.path.join(SCRIPT_DIR, 'xgboost_confusion_matrix.png'), dpi=300)
 plt.close()
 
 

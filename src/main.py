@@ -96,7 +96,7 @@ CATEGORICAL_COLS: list[str] = [
 ]
 
 SAVED_MODEL_DIR = Path("saved_model")
-RESULTS_DIR     = Path("results")
+RESULTS_DIR     = Path("saved_model/results")
 
 LOGGER = logging.getLogger(__name__)
 

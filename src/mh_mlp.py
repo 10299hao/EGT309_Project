@@ -33,7 +33,7 @@ def train_mlp(
     preprocessor,
     X_train,
     y_train,
-    cv_folds: int = 5,
+    cv_folds: int = 3,
     random_state: int = 42,
 ):
     
@@ -44,7 +44,7 @@ def train_mlp(
     search = RandomizedSearchCV(
         pipeline,
         param_distributions=param_dist,
-        n_iter=6,
+        n_iter=3,
         scoring="f1_weighted",
         cv=cv,
         n_jobs=-1,
