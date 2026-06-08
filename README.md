@@ -33,6 +33,7 @@ AI_SOL_P/
 ├── requirements.txt             # Python dependencies
 ├── run.sh                       # Script to run the full pipeline
 └── Dockerfile                   # Docker container configuration
+└── docker-compose.yml           # docker volume 
 ```
 
 ---
@@ -142,9 +143,10 @@ The EDA showed significant overlap between Low and Moderate Activity classes, in
 - **Limitation:** Can become memory-intensive and slower to infer if tree depth is unconstrained.
 - **Tuning:** `n_estimators`, `max_depth`, `min_samples_split` tuned via GridSearchCV; `class_weight='balanced'` to handle imbalance
 
-### 3. 
-- **Why:** 
-- **Tuning:**
+### 3. Support Vector Classifier
+- **Why:** SVC is more suitable here because it excels at margin maximization and the kernel trick, which allow it to capture subtle, non-linear relationships in gas sensor readings. This gives it stronger generalization when the dataset is medium-sized and high-dimensional, leading to higher accuracy compared to tree-based methods.
+- **Limitations:** Training speed → slow on very large datasets,Probability estimates → require extra computation,Categorical handling → needs one-hot encoding, which can inflate dimensionality
+- **tuning:** 'C', 'gamma', 'kernel' optimized via GridSearchCV with cross-validation,
 
 ---
 
