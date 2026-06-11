@@ -81,7 +81,6 @@ y = df[target_column]
 # =====================================================
 # STEP 6 - IDENTIFY FEATURE TYPES
 # =====================================================
-#I AM GOING TO DIE
 numeric_features = X.select_dtypes(
     include=["int64", "float64"]
 ).columns

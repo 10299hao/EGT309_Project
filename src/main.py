@@ -103,14 +103,7 @@ RESULTS_DIR     = Path("saved_model/results")
 LOGGER = logging.getLogger(__name__)
 
 
-# =====================================================
-# EISHMEET MODEL 1 — SVC
-# Fixes applied vs original eishmeet_1.py:
-#   - Removed input() calls (hang in Docker); table/target hardcoded to known values
-#   - Added label cleaning to match the rest of the pipeline
-#   - Removed standalone savefig (saving handled by main evaluate loop)
-#   - Returns a fitted sklearn Pipeline so evaluate_all() can call .predict() on it
-# =====================================================
+#SVC
 def run_svc(X_train: pd.DataFrame, y_train: pd.Series) -> Pipeline:
     """
     Build and return a fitted SVC pipeline.
@@ -144,16 +137,7 @@ def run_svc(X_train: pd.DataFrame, y_train: pd.Series) -> Pipeline:
     return svc_pipeline
 
 
-# =====================================================
-# EISHMEET MODEL 2 — CATBOOST
-# Fixes applied vs original eishmeet_2.py:
-#   - Removed hardcoded wrong table/target names (handled upstream by pipeline)
-#   - loss_function changed from "Logloss" (binary) to "MultiClass" (3 classes)
-#   - Added label cleaning to match the rest of the pipeline
-#   - Added stratify=y to train_test_split (done upstream, no longer needed here)
-#   - Removed standalone savefig (saving handled by main evaluate loop)
-#   - Returns a fitted wrapper so evaluate_all() can call .predict() on it
-# =====================================================
+
 class WrappedCatBoost:
     """
     Thin wrapper around CatBoostClassifier so that .predict() returns
@@ -172,7 +156,7 @@ class WrappedCatBoost:
         return self.model.predict(X_copy).flatten()
 
 
-def run_catboost(X_train: pd.DataFrame, y_train: pd.Series) -> WrappedCatBoost:
+def run_catboost(X_train: pd.DataFrame, y_train: pd.Series):
     """
     Build and return a fitted CatBoost model wrapped for consistent .predict() output.
     CatBoost handles categorical features natively — no OneHotEncoder needed.
@@ -390,7 +374,7 @@ def save_model_comparison(all_results: dict):
     print(f"  Saved: {csv_path}")
 
 
-def save_classification_report_txt(y_test, y_pred, model_name: str) -> None:
+def save_classification_report_txt(y_test, y_pred, model_name: str):
     """Save the full classification report as a readable .txt file."""
     report = classification_report(y_test, y_pred, target_names=CLASS_ORDER)
     save_path = RESULTS_DIR / f"{model_name}_classification_report.txt"
